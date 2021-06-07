@@ -970,6 +970,214 @@ Blockly.WorkspaceSvg.prototype.glowStack = function(id, isGlowingStack) {
   block.setGlowStack(isGlowingStack);
 };
 
+Blockly.WorkspaceSvg.pathBetweenForControlBlock = function(block1, translate=0, topMost){
+  var d = "";
+  var block = block1;
+  
+  while (block != null){
+    var pd = block.svgPath_.getAttribute("d").split(" H");
+    pd[2] = pd[2].replace(pd[2].split(" ")[1],parseInt(pd[2].split(" ")[1]) + translate);
+    var blockType = block.type.replace("control_","");
+    if(["repeat","repeat_until","forever"].includes(blockType)){
+      pd[5] = pd[5].replace(pd[5].split(" ")[1],parseInt(pd[5].split(" ")[1]) + translate )
+      var substack = block.inputList[1].connection ? block.inputList[1].connection.targetConnection.getSourceBlock() : block.inputList[2].connection.targetConnection.getSourceBlock();
+      var newTranslate = parseInt(substack.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      d = d + " H" + pd[2] + Blockly.WorkspaceSvg.pathBetweenForControlBlock(substack,  newTranslate, false)
+        + " H" + pd[5];
+    } else if(blockType == "if"){
+      pd[4] = pd[4].replace(pd[4].split(" ")[1],parseInt(pd[4].split(" ")[1]) + translate )
+      var substack = block.inputList[1].connection ? block.inputList[1].connection.targetConnection.getSourceBlock() : block.inputList[2].connection.targetConnection.getSourceBlock();
+      var newTranslate = parseInt(substack.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      d = d + " H" + pd[2] + Blockly.WorkspaceSvg.pathBetweenForControlBlock(substack,  newTranslate, false)
+        + " H" + pd[4];
+    } else if(blockType == "if_else"){
+      pd[5] = pd[5].replace(pd[5].split(" ")[1],parseInt(pd[5].split(" ")[1]) + translate )
+      pd[7] = pd[7].replace(pd[7].split(" ")[1],parseInt(pd[7].split(" ")[1]) + translate )
+      var substack1 = block.inputList[2].connection.targetConnection.getSourceBlock();
+      var substack2 = block.inputList[4].connection.targetConnection.getSourceBlock();
+      var newTranslate1 = parseInt(substack1.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      var newTranslate2 = parseInt(substack2.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      d = d + " H" + pd[2] + Blockly.WorkspaceSvg.pathBetweenForControlBlock(substack1, newTranslate1, false)
+        + " H" + pd[5] + Blockly.WorkspaceSvg.pathBetweenForControlBlock(substack2,  newTranslate2, false)
+        + " H" + pd[7];
+    }  else {
+      d = d + " H" + pd[2];
+    }
+
+    if(!topMost){
+      block = block.getNextBlock();
+    }else{
+      block = null;
+    }
+  }
+    
+  return d;
+};
+
+/**
+ *Returns path string for nested blocks
+ */
+Blockly.WorkspaceSvg.pathBetween = function(block1, block2, translate=0){
+  var d = "";
+  var block = block1;
+  while (block != null && block != block2){
+    var pd = block.svgPath_.getAttribute("d").split(" H");
+    pd[2] = pd[2].replace(pd[2].split(" ")[1],parseInt(pd[2].split(" ")[1]) + translate);
+    var blockType = block.type.replace("control_","");
+    if(["repeat","repeat_until","forever"].includes(blockType)){
+      pd[5] = pd[5].replace(pd[5].split(" ")[1],parseInt(pd[5].split(" ")[1]) + translate )
+      var substack = block.inputList[1].connection ? block.inputList[1].connection.targetConnection.getSourceBlock() : block.inputList[2].connection.targetConnection.getSourceBlock();
+      var newTranslate = parseInt(substack.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      d = d + " H" + pd[2] + Blockly.WorkspaceSvg.pathBetween(substack, null, newTranslate)
+        + " H" + pd[5];
+    } else if(blockType == "if"){
+      pd[4] = pd[4].replace(pd[4].split(" ")[1],parseInt(pd[4].split(" ")[1]) + translate )
+      var substack = block.inputList[1].connection ? block.inputList[1].connection.targetConnection.getSourceBlock() : block.inputList[2].connection.targetConnection.getSourceBlock();
+      var newTranslate = parseInt(substack.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      d = d + " H" + pd[2] + Blockly.WorkspaceSvg.pathBetween(substack, null, newTranslate)
+        + " H" + pd[4];
+    } else if(blockType == "if_else"){
+      pd[5] = pd[5].replace(pd[5].split(" ")[1],parseInt(pd[5].split(" ")[1]) + translate )
+      pd[7] = pd[7].replace(pd[7].split(" ")[1],parseInt(pd[7].split(" ")[1]) + translate )
+      var substack1 = block.inputList[2].connection.targetConnection.getSourceBlock();
+      var substack2 = block.inputList[4].connection.targetConnection.getSourceBlock();
+      var newTranslate1 = parseInt(substack1.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      var newTranslate2 = parseInt(substack2.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]) + translate;
+      d = d + " H" + pd[2] + Blockly.WorkspaceSvg.pathBetween(substack1, null, newTranslate1)
+        + " H" + pd[5] + Blockly.WorkspaceSvg.pathBetween(substack2, null, newTranslate2)
+        + " H" + pd[7];
+    } else if (block.type.includes("event_when")){
+      d = d ;
+    } else {
+      d = d + " H" + pd[2];
+    }
+    block = block.getNextBlock();
+  }
+  return d;
+};
+
+Blockly.WorkspaceSvg.getBoundingPath = function(block1, block2=null){
+  if(block2 == null){
+    return block1.svgPath_.getAttribute("d");
+  }
+  var d = "";
+  var pd1 = block1.svgPath_.getAttribute("d").split(" H");
+  var pd2 = block2.svgPath_.getAttribute("d").split(" H");
+  d = d + pd1[0] + " H" + pd1[1];
+  var block2Type = block2.type.replace("control_","");
+  d = d + Blockly.WorkspaceSvg.pathBetween(block1,block2);
+  if(["if","repeat","repeat_until","forever"].includes(block2Type)){
+    var substack = block2.inputList[1].connection ? block2.inputList[1].connection.targetConnection.getSourceBlock() : block2.inputList[2].connection.targetConnection.getSourceBlock();
+    var newTranslate = parseInt(substack.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]);
+    d = d + " H" + pd2[2] + Blockly.WorkspaceSvg.pathBetween(substack, null, newTranslate)
+      + " H" + pd2[5];
+    d = d + " H" + pd2[6] + " H" + pd2[7];
+  } else if(block2Type == "if_else"){
+    var substack1 = block2.inputList[2].connection.targetConnection.getSourceBlock();
+    var substack2 = block2.inputList[4].connection.targetConnection.getSourceBlock();
+    var newTranslate1 = parseInt(substack1.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]);
+    var newTranslate2 = parseInt(substack2.getSvgRoot().getAttribute("transform").replace("translate(","").split(",")[0]);
+    d = d + " H" + pd2[2] + Blockly.WorkspaceSvg.pathBetween(substack1, null, newTranslate1)
+      + " H" + pd2[5] + Blockly.WorkspaceSvg.pathBetween(substack2, null, newTranslate2)
+      + " H" + pd2[7];
+    d = d + " H" + pd2[8] + " H" + pd2[9];
+  } else {
+    d = d + " H" + pd2[2];
+    d = d + " H" + pd2[3] + " H" + pd2[4];
+  }
+  return d;
+};
+
+Blockly.WorkspaceSvg.getBoundingPathForControlBlock = function(block, excludeChildrenBlocks){
+  if(excludeChildrenBlocks){
+    return block.svgPath_.getAttribute("d");
+  }
+
+  var d = "";
+  var pd1 = block.svgPath_.getAttribute("d").split(" H");
+  
+  d = d + pd1[0] + " H" + pd1[1];
+  var blockType = block.type.replace("control_","");
+  d = d + Blockly.WorkspaceSvg.pathBetweenForControlBlock(block,null, true);
+  if(["if","repeat","repeat_until","forever"].includes(blockType)){
+    if(["if"].includes(blockType)){
+      d = d + " H" + pd1[5] + " H" + pd1[6];
+    }else if(["forever"].includes(blockType)){
+      d = d + " H" + pd1[6];
+    }else if(["repeat"].includes(blockType)){
+      d = d + " H" + pd1[6] + " H"+ pd1[7];
+    }
+    else{
+      d = d + " H" + pd1[6] + " H" + pd1[7];
+    }
+  } else if(blockType == "if_else"){
+    d = d + " H" + pd1[8] + " H" + pd1[9];
+  } else {
+
+  }
+  return d;
+};
+
+Blockly.WorkspaceSvg.prototype.getBoundingPath = function(blockMarker){
+  var startBlock = blockMarker.startBlock;
+  var endBlock = blockMarker.endBlock;
+  if (!endBlock) {
+    if(startBlock.getFirstStatementConnection()){
+      var excludeChildren = blocks.length === 1;
+      return Blockly.WorkspaceSvg.getBoundingPathForControlBlock(startBlock, excludeChildren);
+    }else{
+      return Blockly.WorkspaceSvg.getBoundingPath(startBlock, null);
+    }
+  }else{
+    return Blockly.WorkspaceSvg.getBoundingPath(startBlock, endBlock)
+  }
+}
+
+/**
+ * 
+ * @param {!Object} marker 
+ * @param {*} isHighlighting 
+ */
+Blockly.WorkspaceSvg.prototype.highlightCode = function (marker, isHighlighting) {
+  var block = null;
+  var endBlock = null;
+  if (marker.startId) {
+    block = this.getBlockById(marker.startId);
+    if (!block) {
+      throw "Tried to highlight start block that does not exist.";
+    }
+    if(marker.endId){
+      endBlock = this.getBlockById(marker.endId);
+      if(!endBlock){
+        throw "Tried to highlight end block that does not exist.";
+      }
+    }
+    
+    var svg = block.getSvgRoot().querySelector("#highlight");
+    if (!isHighlighting) {
+      if (!svg) {
+        throw "Tried to remove highlight path that does not exist.";
+      }
+      svg.remove();
+    } else {
+      if(svg){
+        throw "path is already being hightlighted";
+      }
+      var pathDefinition = this.getBoundingPath({startBlock:block, endBlock:endBlock});
+      var svg = Blockly.utils.createSvgElement("path", {
+        id: "highlight",
+        d: pathDefinition,
+        class: "blocklyBlockBackground",
+        fill: "black",
+        "fill-opacity": "0",
+        stroke: "black",
+        "stroke-width": "4px",
+      });
+      block.getSvgRoot().append(svg);
+    }
+  }
+};
+
 /**
  * Visually report a value associated with a block.
  * In Scratch, appears as a pop-up next to the block when a reporter block is clicked.
@@ -2265,3 +2473,160 @@ Blockly.WorkspaceSvg.prototype.getGrid = function() {
 // Export symbols that would otherwise be renamed by Closure compiler.
 Blockly.WorkspaceSvg.prototype['setVisible'] =
     Blockly.WorkspaceSvg.prototype.setVisible;
+
+/**
+ * Display highlighting box for given block/blocks in the workspace.
+ * @param {?string} start id ID of block to find.
+ * @param {?string} (optional) end id ID of block to find.
+ */
+Blockly.WorkspaceSvg.prototype.drawHighlightBox = function (
+  {start,end,blocks}
+ ) {
+   var svg = null;
+   var block1 = null,
+     block2 = null;
+ 
+     if (start) {
+       block1 = this.getBlockById(start);
+       if (block1.getFirstStatementConnection() && start===end) {
+         var excludeChildrenBlocks = blocks.length===1;
+         svg = Blockly.utils.createSvgElement("path", {
+           d: Blockly.utils.getBoundingPathForControlBlock(block1,excludeChildrenBlocks),
+           class: "blocklyBlockBackground",
+           fill: "black",
+           "fill-opacity": "0",
+           stroke:  "black",
+           "stroke-width": "4px",
+         });
+         block1.getSvgRoot().append(svg);// after
+         this.highlightBoxs_.push(svg);
+         return svg;
+     }
+     if (!block1) {
+       throw "Tried to highlight block that does not exist.";
+     }
+   }
+   if (end) {
+     block2 = this.getBlockById(end);
+     if (!block2) {
+       throw "Tried to highlight block that does not exist.";
+     }
+   }
+ 
+   svg = Blockly.utils.createSvgElement(
+     "path",
+     {
+       d: Blockly.utils.getBoundingPath(block1, block2),
+       class: "blocklyBlockBackground",
+       fill: "black",
+       "fill-opacity": "0",
+       stroke: "black",
+       "stroke-width": "4px",
+     },
+     block1.getSvgRoot()
+   );
+ 
+   this.highlightBoxs_.push(svg);
+   return svg;
+ };
+ 
+ 
+ /**
+  * Remove all highlighting boxes for given block/blocks in the workspace.
+  */
+ Blockly.WorkspaceSvg.prototype.removeHighlightBox = function () {
+   for (var i = 0; i < this.highlightBoxs_.length; i++) {
+     if (this.highlightBoxs_[i].nodeName === "g") {
+       //just remove the effect if it's the block rootSvg
+       this.highlightBoxs_[i].removeAttribute("filter");
+     } else {
+       // remove the path element itself
+       this.highlightBoxs_[i].remove();
+     }
+   }
+ };
+ 
+ Blockly.WorkspaceSvg.prototype.highlightField = function (shadowId) {
+   var shadowBlock = null;
+   if (!shadowBlock) {
+     shadowBlock = this.getBlockById(shadowId);
+     var fieldPath = shadowBlock.getSvgRoot().querySelector("path");
+     var highlightFieldStyle = document.createAttribute("style");
+     highlightFieldStyle.value = "stroke: limegreen; stroke-width: 5;";
+     fieldPath.attributes.setNamedItem(highlightFieldStyle);
+   }
+ };
+ 
+ Blockly.WorkspaceSvg.prototype.unHighlightField = function (shadowId) {
+   var shadowBlock = null;
+   if (!shadowBlock) {
+     shadowBlock = this.getBlockById(shadowId);
+     var fieldPath = shadowBlock.getSvgRoot().querySelector("path");
+     fieldPath.attributes.removeNamedItem("style");
+   }
+ };
+ 
+ Blockly.WorkspaceSvg.prototype.getGroupOutlinePathDef_ = function(blockGroup){
+     const {start, end, blocks} = blockGroup;
+     const startBlock = this.getBlockById(start);
+     const endBlock = this.getBlockById(end);
+ 
+     if (startBlock!==endBlock) {
+       return Blockly.utils.getBoundingPath(startBlock, endBlock)
+     }
+     else{
+       if (startBlock.getFirstStatementConnection() ) {
+         var shouldExcludeChildrenBlocks = blocks.length === 1;
+         return Blockly.utils.getBoundingPathForControlBlock(startBlock, shouldExcludeChildrenBlocks);        
+       }else{
+         return Blockly.utils.getBoundingPath(startBlock, null);
+       }
+     }
+ }
+ 
+ Blockly.WorkspaceSvg.prototype.setGroupOutline = function(blockGroup){
+   console.log(blockGroup);
+   this.blockGroupMap_[blockGroup.start] = blockGroup;
+   const outlinePathDef = this.getGroupOutlinePathDef_(blockGroup);
+   const startBlock = this.getBlockById(blockGroup.start);
+   const id = `outline-${blockGroup.start}`
+ 
+   let groupSvg = startBlock.getSvgRoot().querySelector("#"+id);
+   if(groupSvg){
+     groupSvg.setAttribute("d",outlinePathDef);
+   }else{  
+     const svg = Blockly.utils.createSvgElement("path", {
+       id: id,
+       d: outlinePathDef,
+       class: "blocklyBlockBackground",
+       fill: "black",
+       "fill-opacity": "0",
+       stroke:  "black",
+       "stroke-width": "4px",
+     });
+     startBlock.getSvgRoot().append(svg);
+   }
+   Blockly.BlockGroup.updateBlockGroupProperties(blockGroup, this);
+ }
+ 
+ Blockly.WorkspaceSvg.prototype.renderAllGroups = function() {
+   Object.values(this.blockGroupMap_).forEach(group=>{
+     this.setGroupOutline(group);
+   })
+ }
+ 
+ Blockly.WorkspaceSvg.prototype.removeAllGroups = function(){
+   Object.values(this.blockGroupMap_).forEach(blockGroup=>{
+     let id = `outline-${blockGroup.start}`
+     let startBlock = this.getBlockById(blockGroup.start)
+     let svg = startBlock.getSvgRoot().querySelector("#"+id);
+     if (svg.nodeName === "g") {
+       //just remove the effect if it's the block rootSvg
+       svg.removeAttribute("filter");
+     } else {
+       // remove the path element itself
+       svg.remove();
+     }
+   });
+   this.blockGroupMap_ = {};
+ }
